@@ -1,0 +1,93 @@
+---
+title: 'How Similar Are the Songs of Taylor Swift?'
+author: "STA 325: Assignment 6, Fall 2018"
+date: "Due Wednesday, October 24, 10 PM, Sakai"
+output: pdf_document
+---
+_Agenda_: Writing functions to finding the similarity of all Taylor Swift's songs.
+
+***General instructions for homeworks***: You should know this by now. (If you're not sure, see the previous homework instructions or the syllabus).
+
+***Advice***: Start early on the homeworks and it is advised that you not wait until the day of. While the professor and the TA's check emails, they will be answered in the order they are received and last minute help will not be given unless we happen to be free.  
+
+***Commenting code***
+Code should be commented. See the Google style guide for questions regarding commenting or how to write 
+code \url{https://google.github.io/styleguide/Rguide.xml}. No late homework's will be accepted.
+
+***R Markdown Test***
+
+0. Open a new R Markdown file; set the output to HTML mode and "Knit". This should produce a web page with the knitting procedure executing your code blocks. You can edit this new file to produce your homework submission.
+
+Now that we've walked through the analysis of Beetles songs (please refer to the exercises from class), it's your turn to investigate another artist. 
+
+```{r libraries}
+# load libraries
+library(rvest) # web scraping
+library(stringr) # string manipulation
+library(dplyr) # data manipulation
+library(tidyr) # tidy data
+library(purrr) # functional programming
+library(scales) # formatting for rmd output
+library(ggplot2) # plots
+library(numbers) # divisors function
+library(textreuse) # detecting text reuse and document similarity
+```
+
+We're first going to scrape lyrics from http://www.metrolyrics.com for Taylor Swift (http://www.metrolyrics.com/taylor--swift-lyrics.html).
+We want to make sure we don't forget to remove duplicates and broken links.
+    
+```{r data, cache=TRUE, echo=FALSE}
+# get Taylor Swift lyrics 
+links <- read_html("http://www.metrolyrics.com/taylor-swift-lyrics.html") %>% # lyrics site
+  html_nodes("td a") # get all links to all songs
+
+# get all the links to song lyrics
+tibble(name = links %>% html_text(trim = TRUE) %>% str_replace(" Lyrics", ""), # get song names
+       url = links %>% html_attr("href")) -> songs # get links
+
+# function to extract lyric text from individual sites
+get_lyrics <- function(url){
+  test <- try(url %>% read_html(), silent=T)
+  if ("try-error" %in% class(test)) {
+    # if you can't go to the link, return NA
+    return(NA)
+  } else
+    url %>% read_html() %>%
+      html_nodes(".verse") %>% # this is the text
+      html_text() -> words
+    
+    words %>%
+    paste(collapse = ' ') %>% # paste all paragraphs together as one string
+      str_replace_all("[\r\n]" , ". ") %>% # remove newline chars
+      return()
+}
+
+# get all the lyrics
+# remove duplicates and broken links
+songs %>%
+  mutate(lyrics = (map_chr(url, get_lyrics))) %>%
+  filter(nchar(lyrics) > 0) %>% #remove broken links
+  group_by(name) %>% 
+  mutate(num_copy = n()) %>%
+  filter(num_copy == 1) %>% # remove exact duplicates (by name)
+  select(-num_copy) -> songs 
+```
+
+We end up with the lyrics to `r nrow(songs)` Taylor Swift songs and we can start to think about how to first represent the songs as collections of short strings (*shingling*). As an example, let's shingle the song, "Shake It Off".    
+
+In this assignment, we're going to explore hashing for Taylor Swift songs. 
+    
+1. (10 points) Construct shingles of using the song "Shake it Off." 
+    * Explore the lengths of shingles. Consider shingles of length (k=1,2,3,4,5). Report your findings. 
+2. (10 points) Now, construct shingles of all songs in your corpus.
+3. (10 points)Next, let's hash all of your shingled lyrics.
+4. (10 points) Compute pairwaise Jaccard similarity coefficients for all songs. 
+    * Do this using the hashed lyrics
+    * Approximate using the minhash.
+5. (10 points) Use LSH to compute the Jaccard similarity only for candidates.
+    * How many buckets will you use? 
+    * How many minhashes?
+More specifically, explore this and back up any answer that you have with visualizations and an explanation. (There is more than one correct answer). Give a description of your analysis and your conclusions.
+6. (10 points) Suppose I asked you to perform this task again. Would you perform it using LSH or minhashing? Be sure to back up your answer with a very good reason!  
+
+Extra exercise: Repeat this for all Beatles' songs and describe differences in the results. 
